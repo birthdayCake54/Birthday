@@ -618,6 +618,8 @@
         let isAdmin = false;
         let musicPlaying = false;
         let isLoading = false;
+        
+        const SHEET_URL = 'https://script.google.com/macros/s/AKfycbwnEmBjKNHekKUyVH5ov_9FKnJZaifKro29PdZeeapSgjBMtR6vWXcDrOBHodCtvnxm/exec';
 
         const targetDate = new Date('January 7, 2026 00:00:00').getTime();
 
@@ -662,36 +664,38 @@
         async function loadWishes() {
             try {
                 isLoading = true;
-                const result = await window.storage.list('wish:', true);
-                
-                if (result && result.keys) {
-                    const wishPromises = result.keys.map(async (key) => {
-                        const wishData = await window.storage.get(key, true);
-                        if (wishData && wishData.value) {
-                            return JSON.parse(wishData.value);
-                        }
-                        return null;
-                    });
-                    
-                    const loadedWishes = await Promise.all(wishPromises);
-                    wishes = loadedWishes.filter(w => w !== null).sort((a, b) => a.id - b.id);
-                } else {
-                    wishes = [];
-                }
-                
                 displayWishes();
+                
+                const response = await fetch(SHEET_URL);
+                const data = await response.json();
+                
+                wishes = data.map(wish => ({
+                    id: wish.id,
+                    text: wish.text,
+                    date: wish.date
+                }));
+                
                 isLoading = false;
+                displayWishes();
             } catch (error) {
-                console.log('Loading wishes...');
+                console.error('Error loading wishes:', error);
+                isLoading = false;
                 wishes = [];
                 displayWishes();
-                isLoading = false;
             }
         }
 
         async function saveWish(wish) {
             try {
-                await window.storage.set(`wish:${wish.id}`, JSON.stringify(wish), true);
+                const response = await fetch(SHEET_URL, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(wish)
+                });
+                
                 return true;
             } catch (error) {
                 console.error('Error saving wish:', error);
@@ -701,13 +705,8 @@
         }
 
         async function deleteWishFromStorage(id) {
-            try {
-                await window.storage.delete(`wish:${id}`, true);
-                return true;
-            } catch (error) {
-                console.error('Error deleting wish:', error);
-                return false;
-            }
+            alert('حذف الرسائل من Google Sheets يحتاج تعديل يدوي في الشيت نفسه.');
+            return false;
         }
 
         function checkPassword() {
@@ -826,10 +825,12 @@
                 displayWishes();
                 wishInput.value = '';
                 
-                wishInput.placeholder = 'تم الإرسال! 💖 اكتب رسالة أخرى...';
+                wishInput.placeholder = 'تم الإرسال! 💖 جاري التحديث...';
+                
                 setTimeout(() => {
+                    loadWishes();
                     wishInput.placeholder = 'اكتب أمنيتك هنا... سوف تحاول تخمين من أنت! 💕';
-                }, 3000);
+                }, 2000);
             }
         }
 
